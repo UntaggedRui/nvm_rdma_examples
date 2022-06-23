@@ -8,7 +8,6 @@ bool createContext(RdmaContext *context, uint8_t port, int gidIndex,
     ibv_port_attr portAttr;
     int k = 0;
 
-
     // get device names in the system
     int devicesNum = 0;
     struct ibv_device **deviceList = ibv_get_device_list(&devicesNum);
@@ -25,29 +24,32 @@ bool createContext(RdmaContext *context, uint8_t port, int gidIndex,
         goto CreateResourcesExit;
     }
 
-    for (; k < devicesNum; k++) {
+    for (; k < devicesNum; k++)
+    {
         ctx = ibv_open_device(deviceList[k]);
-        if (ctx) {
+        if (ctx)
+        {
             int rc = 0;
-            for (int j=0; j < 2; j++) {
+            for (int j = 0; j < 2; j++)
+            {
                 int ret;
                 ret = ibv_query_port(ctx, j, &portAttr);
-                if (ret == 0) {
-                    if (portAttr.state == IBV_PORT_ACTIVE) {
-                        // Debug::notifyInfo("ib device %s, phys_state=%d, state=%d with port %d\n", 
+                if (ret == 0)
+                {
+                    if (portAttr.state == IBV_PORT_ACTIVE)
+                    {
+                        // Debug::notifyInfo("ib device %s, phys_state=%d, state=%d with port %d\n",
                         // ibv_get_device_name(deviceList[i]), port_attr.phys_state, port_attr.state, j);
                         rc = 1;
                         devIndex = k;
                         break;
                     }
                 }
-
             }
-            if (rc) break;
-
+            if (rc)
+                break;
         }
     }
-
 
     if (devIndex >= devicesNum)
     {
@@ -67,9 +69,6 @@ bool createContext(RdmaContext *context, uint8_t port, int gidIndex,
     /* We are now done with device list, free it */
     ibv_free_device_list(deviceList);
     deviceList = NULL;
-
-   
-
 
     // allocate Protection Domain
     pd = ibv_alloc_pd(ctx);
@@ -200,12 +199,12 @@ bool modifyQPtoInit(struct ibv_qp *qp, RdmaContext *context)
     struct ibv_qp_attr attr;
     struct ibv_qp_init_attr init_attr;
 
-    if(ibv_query_qp(qp, &attr, IBV_QP_STATE, &init_attr) !=0)
+    if (ibv_query_qp(qp, &attr, IBV_QP_STATE, &init_attr) != 0)
     {
         Debug::notifyError("Failed to query QP.");
         return false;
     }
-    if(attr.qp_state != IBV_QPS_RESET)
+    if (attr.qp_state != IBV_QPS_RESET)
     {
         Debug::notifyError("Error: QP state not RESET when calling modify_qp_to_INIT().");
         return false;
@@ -290,13 +289,13 @@ bool modifyQPtoRTS(struct ibv_qp *qp)
     int flags;
     memset(&attr, 0, sizeof(attr));
 
-    if(ibv_query_qp(qp, &attr, IBV_QP_STATE, &init_attr) != 0)
+    if (ibv_query_qp(qp, &attr, IBV_QP_STATE, &init_attr) != 0)
     {
         Debug::notifyError("Failed to query QP.");
         return false;
     }
 
-    if(attr.qp_state != IBV_QPS_RTR)
+    if (attr.qp_state != IBV_QPS_RTR)
     {
         Debug::notifyError("Error: QP state not RTR when calling modify_qp_to_RTS().");
         return false;
@@ -341,7 +340,8 @@ void wire_gid_to_gid(const char *wgid, union ibv_gid *gid)
     uint32_t *raw = (uint32_t *)gid->raw;
     int i;
 
-    for (tmp[8] = 0, i = 0; i < 4; ++i) {
+    for (tmp[8] = 0, i = 0; i < 4; ++i)
+    {
         memcpy(tmp, wgid + i * 8, 8);
         sscanf(tmp, "%x", &v32);
         raw[i] = ntohl(v32);
@@ -357,7 +357,8 @@ void gid_to_wire_gid(const union ibv_gid *gid, char wgid[])
     int i;
     uint32_t *raw = (uint32_t *)gid->raw;
 
-    for (i = 0; i < 4; ++i) {
+    for (i = 0; i < 4; ++i)
+    {
         sprintf(&wgid[i * 8], "%08x", htonl(raw[i]));
     }
 }
@@ -447,7 +448,7 @@ bool rdmaRead(ibv_qp *qp, uint64_t source, uint64_t dest, uint64_t size, uint32_
     fillSgeWr(sg, wr, source, size, lkey);
 
     wr.opcode = IBV_WR_RDMA_READ;
-    if(signal)
+    if (signal)
     {
         wr.send_flags = IBV_SEND_SIGNALED;
     }
@@ -455,11 +456,211 @@ bool rdmaRead(ibv_qp *qp, uint64_t source, uint64_t dest, uint64_t size, uint32_
     wr.wr.rdma.rkey = remoteRKey;
     wr.wr_id = wrID;
 
-    if(ibv_post_send(qp, &wr, &wrBad))
+    if (ibv_post_send(qp, &wr, &wrBad))
     {
         Debug::notifyError("Send with RDMA_READ failed");
         return false;
     }
     return true;
+}
+static inline void fillSgeWr(ibv_sge &sg, ibv_recv_wr &wr, uint64_t source,
+                             uint64_t size, uint32_t lkey)
+{
+    memset(&sg, 0, sizeof(sg));
+    sg.addr = (uintptr_t)source;
+    sg.length = size;
+    sg.lkey = lkey;
 
+    memset(&wr, 0, sizeof(wr));
+    wr.wr_id = 0;
+    wr.sg_list = &sg;
+    wr.num_sge = 1;
+}
+bool rdmaReceive(ibv_qp *qp, uint64_t source, uint64_t size, uint32_t lkey, uint64_t wr_id)
+{
+    struct ibv_sge sg;
+    struct ibv_recv_wr wr;
+    struct ibv_recv_wr *wrBad;
+
+    fillSgeWr(sg, wr, source, size, lkey);
+
+    wr.wr_id = wr_id;
+
+    if (ibv_post_recv(qp, &wr, &wrBad))
+    {
+        Debug::notifyError("Receive with RDMA_RECV failed.");
+        return false;
+    }
+    return true;
+}
+
+// for RC&UC
+bool rdmaSend(ibv_qp *qp, uint64_t source, uint64_t size, uint32_t lkey,
+              int32_t imm) {
+
+  struct ibv_sge sg;
+  struct ibv_send_wr wr;
+  struct ibv_send_wr *wrBad;
+
+  fillSgeWr(sg, wr, source, size, lkey);
+
+  if (imm != -1) {
+    wr.imm_data = imm;
+    wr.opcode = IBV_WR_SEND_WITH_IMM;
+  } else {
+    wr.opcode = IBV_WR_SEND;
+  }
+
+  wr.send_flags = IBV_SEND_SIGNALED;
+  if (ibv_post_send(qp, &wr, &wrBad)) {
+    Debug::notifyError("Send with RDMA_SEND failed.");
+    return false;
+  }
+  return true;
+}
+void *server_exch_data(RdmaContext *ctx, int sock_port, struct Rdma_connect_info *local_dest, struct Rdma_connect_info *rem_dest)
+{
+    struct addrinfo *res, *t;
+    struct addrinfo hints = {
+        .ai_flags = AI_PASSIVE,
+        .ai_family = AF_INET,
+        .ai_socktype = SOCK_STREAM};
+    char *service;
+    char msg[sizeof "0000:000000:000000:00000000:0000000000000000:00000000000000000000000000000000"];
+    int n;
+    int sockfd = -1, connfd;
+    char gid[33];
+
+    if (asprintf(&service, "%d", sock_port) < 0)
+        return NULL;
+
+    n = getaddrinfo(NULL, service, &hints, &res);
+
+    if (n < 0)
+    {
+        fprintf(stderr, "%s for port %d\n", gai_strerror(n), sock_port);
+        free(service);
+        return NULL;
+    }
+
+    for (t = res; t; t = t->ai_next)
+    {
+        sockfd = socket(t->ai_family, t->ai_socktype, t->ai_protocol);
+        if (sockfd >= 0)
+        {
+            n = 1;
+            setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &n, sizeof n);
+            if (!bind(sockfd, t->ai_addr, t->ai_addrlen))
+                break;
+            close(sockfd);
+            sockfd = -1;
+        }
+    }
+
+    freeaddrinfo(res);
+    free(service);
+
+    if (sockfd < 0)
+    {
+        Debug::notifyError("Couldn't listen to port %d", sock_port);
+        return NULL;
+    }
+
+    listen(sockfd, 1);
+
+    Debug::notifyError("server listen at %d", sock_port);
+    connfd = accept(sockfd, NULL, 0);
+    close(sockfd);
+    if (connfd < 0)
+    {
+        Debug::notifyError("accept() failed");
+    }
+
+    n = read(connfd, msg, sizeof(msg));
+    if (n != sizeof(msg))
+    {
+        Debug::notifyError("%d/%lu: Couldn't read remote address", n, sizeof(msg));
+        goto out;
+    }
+    sscanf(msg, "%x:%x:%x:%x:%lx:%s", &rem_dest->lid, &rem_dest->qpn, &rem_dest->psn, &rem_dest->rKey, &rem_dest->data_vaddr, gid);
+    wire_gid_to_gid(gid, &rem_dest->gid);
+    gid_to_wire_gid(&local_dest->gid, gid);
+    sprintf(msg, "%04x:%06x:%06x:%08x:%16lx:%s", local_dest->lid, local_dest->qpn, local_dest->psn, local_dest->rKey, local_dest->data_vaddr, gid);
+    if (write(connfd, msg, sizeof msg) != sizeof msg)
+    {
+        fprintf(stderr, "Couldn't send local address\n");
+        free(rem_dest);
+        rem_dest = NULL;
+        goto out;
+    }
+
+    read(connfd, msg, sizeof msg);
+
+out:
+    close(connfd);
+    return rem_dest;
+}
+bool client_exch_data(const char *servername, int sock_port, struct Rdma_connect_info *local_dest, struct Rdma_connect_info *rem_dest)
+{
+    struct addrinfo *res, *t;
+    struct addrinfo hints = {
+        .ai_family = AF_INET,
+        .ai_socktype = SOCK_STREAM};
+    char *service;
+    char msg[sizeof "0000:000000:000000:00000000:0000000000000000:00000000000000000000000000000000"];
+    int n, sockfd = -1;
+    char gid[33];
+
+    if (asprintf(&service, "%d", sock_port) < 0)
+        return false;
+
+    n = getaddrinfo(servername, service, &hints, &res);
+
+    if (n < 0)
+    {
+        Debug::notifyError("%s for %s:%d", gai_strerror(n), servername, sock_port);
+        free(service);
+        return false;
+    }
+    for (t = res; t; t = t->ai_next)
+    {
+        sockfd = socket(t->ai_family, t->ai_socktype, t->ai_protocol);
+        if (sockfd >= 0)
+        {
+            if (!connect(sockfd, t->ai_addr, t->ai_addrlen))
+                break;
+            close(sockfd);
+        }
+    }
+    freeaddrinfo(res);
+    free(service);
+
+    if (sockfd < 0)
+    {
+        Debug::notifyError("Couldn't connect to %s:%d\n", servername, sock_port);
+        return false;
+    }
+
+    gid_to_wire_gid(&local_dest->gid, gid);
+    sprintf(msg, "%04x:%06x:%06x:%08x:%16lx:%s", local_dest->lid, local_dest->qpn, local_dest->psn, local_dest->rKey, local_dest->data_vaddr, gid);
+    ssize_t write_num = write(sockfd, msg, sizeof(msg));
+    if (write_num != sizeof(msg))
+    {
+        Debug::notifyError("send msg %d is Couldn't send local address", write_num);
+        goto out;
+    }
+    if (read(sockfd, msg, sizeof(msg)) != sizeof(msg))
+    {
+        Debug::notifyError("Couldn't read remote address");
+        goto out;
+    }
+    write(sockfd, "done", sizeof("done"));
+
+    sscanf(msg, "%x:%x:%x:%x:%lx:%s", &rem_dest->lid, &rem_dest->qpn, &rem_dest->psn, &rem_dest->rKey, &rem_dest->data_vaddr, gid);
+    wire_gid_to_gid(gid, &rem_dest->gid);
+
+    return true;
+out:
+    close(sockfd);
+    return false;
 }

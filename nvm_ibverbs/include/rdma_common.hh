@@ -46,6 +46,9 @@ struct Rdma_connect_info
   uint64_t data_vaddr;
   ibv_mr *mr;
 };
+
+void *server_exch_data(RdmaContext *ctx, int sock_port, struct Rdma_connect_info *local_dest, struct Rdma_connect_info *rem_dest);
+bool client_exch_data(const char *servername, int sock_port, struct Rdma_connect_info *local_dest, struct Rdma_connect_info *rem_dest);
 bool createContext(RdmaContext *context, uint8_t port = 1, int gidIndex = 1,
                    uint8_t devIndex = 0);
 
@@ -72,7 +75,10 @@ bool rdmaWrite(ibv_qp *qp, uint64_t source, uint64_t dest, uint64_t size,
 bool rdmaRead(ibv_qp *qp, uint64_t source, uint64_t dest, uint64_t size,
               uint32_t lkey, uint32_t remoteRKey, bool signal = true,
               uint64_t wrID = 0);
-
+bool rdmaSend(ibv_qp *qp, uint64_t source, uint64_t size, uint32_t lkey,
+              int32_t imm = -1);
+bool rdmaReceive(ibv_qp *qp, uint64_t source, uint64_t size, uint32_t lkey,
+                 uint64_t wr_id = 0);
 int pollWithCQ(ibv_cq *cq, int pollNumber, struct ibv_wc *wc);
 
 void wire_gid_to_gid(const char *wgid, union ibv_gid *gid);
