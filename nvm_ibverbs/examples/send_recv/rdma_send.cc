@@ -1,22 +1,7 @@
 #include "rdma_common.hh"
-#include <fcntl.h>
-#include <sys/mman.h>
-#include <linux/mman.h>
+#include "util.hh"
 
 
-void opennvm(char **buffer)
-{
-    Debug::notifyInfo("Strart allocating memory");
-    int pmem_file_id = open("/dev/dax1.0",  O_RDWR | O_CREAT | O_TRUNC, 0666);
-    if (pmem_file_id < 0)
-    {
-        Debug::notifyError("open file failed\n");
-    }
-    size_t mysize =  (size_t)1024 * 1024 * 1024 * 2;
-    *buffer = (char *)mmap(0, mysize, PROT_READ | PROT_WRITE, 0x80003, pmem_file_id, 0);
-    printf("%p\n", *buffer);
-
-}
 int main()
 {
     RdmaContext ctx;

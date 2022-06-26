@@ -11,7 +11,7 @@
 #include <errno.h>
 
 #define RAW_RECV_CQ_COUNT 128
-#define MAX_THREAD 1
+#define MAX_THREAD 10
 #define BUF_SIZE 4096
 #define PSN 3185
 #define GID_IDX 3
@@ -84,4 +84,10 @@ int pollWithCQ(ibv_cq *cq, int pollNumber, struct ibv_wc *wc);
 void wire_gid_to_gid(const char *wgid, union ibv_gid *gid);
 void gid_to_wire_gid(const union ibv_gid *gid, char wgid[]);
 void ibv_gid_to_char(union ibv_gid *ibvgid, uint8_t *gid);
+
+
+
+
+
+
 #endif

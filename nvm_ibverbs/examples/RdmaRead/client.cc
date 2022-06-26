@@ -1,21 +1,25 @@
 #include "rdma_common.hh"
+#include "util.hh"
 
 #define SERVER_IP "192.168.2.206"
+
 
 int main()
 {
     RdmaContext ctx;
     ibv_cq *cq;
-    ibv_cq *send_cq;
     ibv_qp *all_qp[MAX_THREAD];
     Rdma_connect_info local_info[MAX_THREAD], remote_info[MAX_THREAD];
     char buf[MAX_THREAD][BUF_SIZE];
+    int buffersize = 1024;
     int sock_port = 8888;
     uint8_t uint_gid[16];
     ibv_mr *mr, *localmr;
     int i;
 
     createContext(&ctx, 1, GID_IDX);
+    
+    
     cq = ibv_create_cq(ctx.ctx, RAW_RECV_CQ_COUNT, NULL, NULL, 0);
     ibv_gid_to_char(&ctx.gid, uint_gid);
     mr = createMemoryRegion((u_int64_t)&buf[0], BUF_SIZE, &ctx);
@@ -56,10 +60,10 @@ int main()
             // pollWithCQ(cq, 1, &wc);
             // printf("write complete 1\n");
 
-            rdmaRead(qp, (uint64_t)(buf[0]),  remote_info[i].data_vaddr, 100,  local_info[i].mr->lkey,  remote_info[i].rKey);
+            rdmaRead(qp, (uint64_t)(buf[0]), remote_info[i].data_vaddr, 100, local_info[i].mr->lkey, remote_info[i].rKey);
             pollWithCQ(cq, 1, &wc);
             printf("read complete 1\n");
-            for(int b=0;b<BUF_SIZE;b++)
+            for (int b = 0; b < BUF_SIZE; b++)
             {
                 printf("%c", buf[i][b]);
             }
@@ -67,8 +71,9 @@ int main()
             sleep(1);
         }
     }
-
+    
 out:
     destoryContext(&ctx);
+
     return 0;
 }

@@ -7,10 +7,12 @@
 
 # 每个模块的功能
 ## src include
-`rdma_common.cc`中封装了rdma的建立连接与读写数据的一些基本参数。examples中include rdma_common.hh即可使用这些函数。
+`rdma_common.cc`中封装了rdma的建立连接与读写数据的一些基本函数。examples中include rdma_common.hh即可使用这些函数。
 ## examples
 RdmaRead: client端使用rdmaRead读取server端的内存。
 
 RdmaWrite: client端使用rdmaWrite向server端写数据。
 
 send_recv: server端使用send发送数据，client端调用receive接收数据。
+
+multi_thead: 多线程的read
