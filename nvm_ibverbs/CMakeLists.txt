@@ -7,5 +7,6 @@ add_library(rdmacommon STATIC
 set_target_properties(rdmacommon PROPERTIES LINKER_LANGUAGE CXX)
 target_link_libraries(rdmacommon pthread)
 add_subdirectory(examples)
+add_subdirectory(benchmarks)
 
 

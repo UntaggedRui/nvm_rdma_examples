@@ -38,8 +38,8 @@ bool createContext(RdmaContext *context, uint8_t port, int gidIndex,
                 {
                     if (portAttr.state == IBV_PORT_ACTIVE)
                     {
-                        // Debug::notifyInfo("ib device %s, phys_state=%d, state=%d with port %d\n",
-                        // ibv_get_device_name(deviceList[i]), port_attr.phys_state, port_attr.state, j);
+                        Debug::notifyInfo("ib device %s, phys_state=%d, state=%d with port %d\n",
+                        ibv_get_device_name(deviceList[k]), portAttr.phys_state, portAttr.state, j);
                         rc = 1;
                         devIndex = k;
                         break;
@@ -119,9 +119,10 @@ bool destoryContext(RdmaContext *context)
     bool rc = true;
     if (context->pd)
     {
-        if (ibv_dealloc_pd(context->pd))
+        int ans = ibv_dealloc_pd(context->pd);
+        if (ans)
         {
-            Debug::notifyError("Failed to deallocate PD");
+            Debug::notifyError("Failed to deallocate PD, errorcode is - %s", strerror(errno));
             rc = false;
         }
     }

@@ -22,6 +22,21 @@ public:
     }
     ~RDMA_microbench()
     {
+        for (int i = 0; i < this->thread_num; i++)
+        {
+            if (ibv_destroy_qp(this->all_qp[i])) 
+			{
+                Debug::notifyError("Failed to destroy qp - %s", strerror(errno));
+            }
+            if (ibv_destroy_cq(this->cq[i]))
+            {
+                Debug::notifyError("Failed to destroy CQ - %s", strerror(errno));
+            }
+            if (ibv_dereg_mr(this->mr[i]))
+            {
+                Debug::notifyError("Failed to deregister send credit MR");
+            }
+        }
         destoryContext(&ctx);
         if (use_nvm)
         {
@@ -33,10 +48,12 @@ public:
     }
     void run_server(int thread_num)
     {
+        this->thread_num = thread_num;
         pid = new std::thread *[thread_num];
         for (int i = 0; i < thread_num; i++)
         {
             pid[i] = new std::thread(&RDMA_microbench::run_server_thread, this, i);
+            // rc = pthread_create(&threads[i], NULL, PThreadSearch, (void *)&td[i]);
         }
         for (int i = 0; i < thread_num; i++)
         {
@@ -46,6 +63,7 @@ public:
     }
     void run_client(int thread_num)
     {
+        this->thread_num = thread_num;
         pid = new std::thread *[thread_num];
         for (int i = 0; i < thread_num; i++)
         {
@@ -165,4 +183,5 @@ public:
     bool use_nvm = true;
     size_t mapsize = (size_t)1024 * 1024 * 1024 * 2;
     std::thread **pid;
+    uint8_t thread_num;
 };
