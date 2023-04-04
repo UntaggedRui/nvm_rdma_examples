@@ -116,6 +116,14 @@ CreateResourcesExit:
 
 bool destoryContext(RdmaContext *context)
 {
+    /**
+     * 调用ibv_destroy_qp销毁QP（Queue Pair）对象，以取消所有未完成的操作。
+        调用ibv_destroy_cq销毁CQ（Completion Queue）对象，以确保不会再收到任何完成事件。
+        调用ibv_dereg_mr取消所有已注册的内存区域，以确保不再引用这些区域。
+        调用ibv_dealloc_pd销毁PD（Protection Domain）对象，以确保取消任何与该PD关联的资源。
+        最后，关闭Socket连接并释放相关的资源（例如，文件描述符）。
+    */
+   
     bool rc = true;
     if (context->pd)
     {
@@ -141,24 +149,14 @@ bool createQueuePair(ibv_qp **qp, ibv_qp_type mode, ibv_cq *send_cq,
                      ibv_cq *recv_cq, RdmaContext *context,
                      uint32_t qpsMaxDepth, uint32_t maxInlineData)
 {
-    struct ibv_exp_qp_init_attr attr;
+    struct ibv_qp_init_attr attr;
     memset(&attr, 0, sizeof(attr));
 
     attr.qp_type = mode;
     attr.sq_sig_all = 0;
     attr.recv_cq = recv_cq;
     attr.send_cq = send_cq;
-    attr.pd = context->pd;
 
-    if (mode == IBV_QPT_RC)
-    {
-        attr.comp_mask = IBV_EXP_QP_INIT_ATTR_CREATE_FLAGS | IBV_EXP_QP_INIT_ATTR_PD | IBV_EXP_QP_INIT_ATTR_ATOMICS_ARG;
-        attr.max_atomic_arg = 32;
-    }
-    else
-    {
-        attr.comp_mask = IBV_EXP_QP_INIT_ATTR_PD;
-    }
 
     attr.cap.max_send_wr = qpsMaxDepth;
     attr.cap.max_recv_wr = qpsMaxDepth;
@@ -166,7 +164,7 @@ bool createQueuePair(ibv_qp **qp, ibv_qp_type mode, ibv_cq *send_cq,
     attr.cap.max_recv_sge = 1;
     attr.cap.max_inline_data = maxInlineData;
 
-    *qp = ibv_exp_create_qp(context->ctx, &attr);
+    *qp = ibv_create_qp(context->pd, &attr);
     if (!(*qp))
     {
         Debug::notifyError("Failed to create QP");
@@ -224,9 +222,7 @@ bool modifyQPtoInit(struct ibv_qp *qp, RdmaContext *context)
     case IBV_QPT_UC:
         attr.qp_access_flags = IBV_ACCESS_REMOTE_WRITE;
         break;
-    case IBV_EXP_QPT_DC_INI:
-        Debug::notifyError("implement me:");
-        break;
+
 
     default:
         Debug::notifyError("error qp_type");
@@ -576,7 +572,7 @@ void *server_exch_data(RdmaContext *ctx, int sock_port, struct Rdma_connect_info
     {
         Debug::notifyError("accept() failed");
     }
-
+    Debug::debugItem("accpet complete, begin read");
     n = read(connfd, msg, sizeof(msg));
     if (n != sizeof(msg))
     {
@@ -644,6 +640,7 @@ bool client_exch_data(const char *servername, int sock_port, struct Rdma_connect
 
     gid_to_wire_gid(&local_dest->gid, gid);
     sprintf(msg, "%04x:%06x:%06x:%08x:%16lx:%s", local_dest->lid, local_dest->qpn, local_dest->psn, local_dest->rKey, local_dest->data_vaddr, gid);
+    Debug::debugItem("msg is %s, begin write", msg);
     ssize_t write_num = write(sockfd, msg, sizeof(msg));
     if (write_num != sizeof(msg))
     {

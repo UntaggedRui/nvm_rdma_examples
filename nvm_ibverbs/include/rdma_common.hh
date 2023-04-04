@@ -9,6 +9,7 @@
 #include <netdb.h>
 #include <unistd.h>
 #include <errno.h>
+#include <cstdlib>
 
 #define RAW_RECV_CQ_COUNT 128
 #define MAX_THREAD 10

@@ -25,6 +25,7 @@ private:
     size_t buf_size;
     uint64_t block_size;
     int sock_port;
+    uint32_t thread_num;
     bool use_nvm = true;
     bool is_server;
     size_t mapsize = (size_t)1024 * 1024 * 1024 * 2;

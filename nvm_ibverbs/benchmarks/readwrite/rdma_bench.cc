@@ -53,7 +53,39 @@ RDMA_bench::RDMA_bench()
 }
 RDMA_bench::~RDMA_bench()
 {
-    destoryContext(&ctx);
+    // destoryContext(&ctx);
+    /**
+     * 调用ibv_destroy_qp销毁QP（Queue Pair）对象，以取消所有未完成的操作。
+        调用ibv_destroy_cq销毁CQ（Completion Queue）对象，以确保不会再收到任何完成事件。
+        调用ibv_dereg_mr取消所有已注册的内存区域，以确保不再引用这些区域。
+        调用ibv_dealloc_pd销毁PD（Protection Domain）对象，以确保取消任何与该PD关联的资源。
+        最后，关闭Socket连接并释放相关的资源（例如，文件描述符）。
+    */
+    // 销毁qp
+    int i;
+    for (i = 0; i < this->thread_num; i++)
+    {
+        ibv_destroy_qp(this->all_qp[i]);
+        ibv_destroy_cq(this->cq[i]);
+        ibv_dereg_mr(this->mr[i]);
+    }
+    if (ctx.pd)
+    {
+        int ans = ibv_dealloc_pd(ctx.pd);
+        if (ans)
+        {
+            Debug::notifyError("Failed to deallocate PD, errorcode is - %s", strerror(errno));
+        }
+    }
+
+    if (ctx.ctx)
+    {
+        if (ibv_close_device(ctx.ctx))
+        {
+            Debug::notifyError("failed to close device context");
+        }
+    }
+
     if (FLAGS_is_server)
     {
         if (use_nvm)
@@ -74,13 +106,14 @@ RDMA_bench::~RDMA_bench()
 }
 void RDMA_bench::run_server(int thread_num)
 {
-    pid = new std::thread *[thread_num];
-    for (int i = 0; i < thread_num; i++)
+    this->thread_num = thread_num;
+    pid = new std::thread *[this->thread_num];
+    for (int i = 0; i < this->thread_num; i++)
     {
         pid[i] = new std::thread(&RDMA_bench::run_server_thread, this, i);
         // rc = pthread_create(&threads[i], NULL, PThreadSearch, (void *)&td[i]);
     }
-    for (int i = 0; i < thread_num; i++)
+    for (int i = 0; i < this->thread_num; i++)
     {
         pid[i]->join();
     }
@@ -88,12 +121,13 @@ void RDMA_bench::run_server(int thread_num)
 }
 void RDMA_bench::run_client(int thread_num)
 {
-    pid = new std::thread *[thread_num];
-    for (int i = 0; i < thread_num; i++)
+    this->thread_num = thread_num;
+    pid = new std::thread *[this->thread_num];
+    for (int i = 0; i < this->thread_num; i++)
     {
         pid[i] = new std::thread(&RDMA_bench::run_client_thread, this, i);
     }
-    for (int i = 0; i < thread_num; i++)
+    for (int i = 0; i < this->thread_num; i++)
     {
         pid[i]->join();
     }
@@ -119,15 +153,18 @@ void RDMA_bench::run_client_thread(int i)
     local_info[i].rKey = local_info[i].mr->rkey;
 
     modifyQPtoInit(qp, &ctx);
-
+    Debug::debugItem("begin connect to server");
     if (!client_exch_data(FLAGS_server_ip.c_str(), sock_port + i, &local_info[i], &remote_info[i]))
     {
 
         Debug::notifyError("exch info failed");
     }
-
+    Debug::debugItem("begin modifyQPtoRTR");
     modifyQPtoRTR(qp, &remote_info[i]);
+    Debug::debugItem("begin modifyQPtoRTS");
     modifyQPtoRTS(qp);
+    Debug::debugItem("rdma coneect complete");
+
     ibv_wc wc;
     if (FLAGS_benchmarks == "read")
     {
@@ -148,7 +185,7 @@ void RDMA_bench::run_client_thread(int i)
                 }
                 printf("\n");
                 sleep(1);
-#endif                
+#endif
         }
         printf("RDMA seq read lat: %s\n", hist.ToString().c_str());
     }

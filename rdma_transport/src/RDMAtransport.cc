@@ -119,6 +119,7 @@ namespace myrdma
     }
     RDMAtransport::~RDMAtransport()
     {
+        Debug::debugCur("beign clean");
         if (this->pd)
         {
             if (ibv_dealloc_pd(this->pd))
@@ -145,29 +146,20 @@ namespace myrdma
     }
     bool RDMAtransport::createQueuePair(ibv_qp_type mode)
     {
-        struct ibv_exp_qp_init_attr attr;
+        struct ibv_qp_init_attr attr;
         memset(&attr, 0, sizeof(attr));
         attr.qp_type = mode;
         attr.sq_sig_all = 0;
         attr.recv_cq = this->recv_cq;
         attr.send_cq = this->send_cq;
-        attr.pd = this->pd;
 
-        if (mode == IBV_QPT_RC)
-        {
-            attr.comp_mask = IBV_EXP_QP_INIT_ATTR_CREATE_FLAGS | IBV_EXP_QP_INIT_ATTR_PD | IBV_EXP_QP_INIT_ATTR_ATOMICS_ARG;
-            attr.max_atomic_arg = 32;
-        }
-        else
-        {
-            attr.comp_mask = IBV_EXP_QP_INIT_ATTR_PD;
-        }
+    
         attr.cap.max_send_wr = this->qpsMaxDepth;
         attr.cap.max_recv_wr = this->qpsMaxDepth;
         attr.cap.max_send_sge = 1;
         attr.cap.max_recv_sge = 1;
         attr.cap.max_inline_data = this->maxInlineData;
-        *(this->qp) = ibv_exp_create_qp(this->ctx, &attr);
+        *(this->qp) = ibv_create_qp(this->pd, &attr);
         if (!(*this->qp))
         {
             Debug::notifyError("Failed to create QP");
@@ -220,9 +212,6 @@ namespace myrdma
             break;
         case IBV_QPT_UC:
             attr.qp_access_flags = IBV_ACCESS_REMOTE_WRITE;
-            break;
-        case IBV_EXP_QPT_DC_INI:
-            Debug::notifyError("implement me:");
             break;
 
         default:

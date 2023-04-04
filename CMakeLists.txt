@@ -16,8 +16,8 @@ include_directories(
         thirdparty
 )
 
-add_subdirectory(readwrite)
 add_subdirectory(thirdparty/Sherman)
 add_subdirectory(nicmem)
 # add_subdirectory(nvm_write)
+# add_subdirectory(readwrite)
 add_subdirectory(nvm_ibverbs)
